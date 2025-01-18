@@ -1,0 +1,130 @@
+substitutions:
+  display_name: kalman-bme680-demo
+
+esphome:
+  name: ${display_name}
+  friendly_name: Kalman BME680 Demo
+
+external_components:
+  - source: github://IslamAlam/esphome-components
+    components: [ kalman_filter ]
+
+esp32:
+  board: esp32-c3-devkitm-1
+  framework:
+    type: arduino
+
+# Enable logging and API
+logger:
+  level: INFO
+api:
+ota:
+web_server:
+  port: 80
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+i2c:
+  sda: GPIO08
+  scl: GPIO09
+  scan: true
+
+# BME680/688 Configuration
+bme68x_bsec2_i2c:
+  address: 0x77
+  model: bme688
+  sample_rate: LP
+  state_save_interval: 6h
+  supply_voltage: 3.3V
+
+sensor:
+  # Raw BME680 sensors
+  - platform: bme68x_bsec2
+    temperature:
+      name: "BME68X Raw Temperature"
+      id: bme_temp_raw
+    pressure:
+      name: "BME68X Raw Pressure"
+      id: bme_pressure_raw
+    humidity:
+      id: "bme_humidity_raw"
+      name: "BME68X Raw Humidity"
+    gas_resistance:
+      id: "gas_resistance"
+      name: "BME68X Gas Sensor"
+    iaq:
+      name: "BME68X IAQ"
+      id: bme_iaq_raw
+    co2_equivalent:
+      name: "BME68X Raw CO2"
+      id: bme_co2_raw
+
+  # Kalman filtered sensors
+  - platform: kalman_filter
+    name: "Filtered Temperature"
+    source_id: bme_temp_raw
+    process_noise: 0.01
+    measurement_noise: 0.1
+    estimated_error: 1.0
+    update_interval: 5s
+    unit_of_measurement: "°C"
+    accuracy_decimals: 2
+
+  - platform: kalman_filter
+    name: "Filtered Humidity"
+    source_id: bme_humidity_raw
+    process_noise: 0.02
+    measurement_noise: 0.2
+    estimated_error: 1.0
+    update_interval: 5s
+    unit_of_measurement: "%"
+    accuracy_decimals: 1
+
+  - platform: kalman_filter
+    name: "Filtered Pressure"
+    source_id: bme_pressure_raw
+    process_noise: 0.1
+    measurement_noise: 1.0
+    estimated_error: 2.0
+    update_interval: 5s
+    unit_of_measurement: "hPa"
+    accuracy_decimals: 1
+
+  - platform: kalman_filter
+    name: "Filtered CO2"
+    source_id: bme_co2_raw
+    process_noise: 1.0
+    measurement_noise: 2.0
+    estimated_error: 5.0
+    update_interval: 5s
+    unit_of_measurement: "ppm"
+    accuracy_decimals: 0
+
+  # Air quality calculation
+  - platform: template
+    name: "BME680 Indoor Air Quality"
+    id: iaq_calculated
+    icon: "mdi:gauge"
+    lambda: |-
+      return log(id(gas_resistance).state) + 0.04 * id(bme_humidity_raw).state;
+    update_interval: 5s
+    unit_of_measurement: "IAQ"
+    accuracy_decimals: 1
+
+text_sensor:
+  - platform: template
+    name: "Air Quality Classification"
+    icon: "mdi:checkbox-marked-circle-outline"
+    update_interval: 5s
+    lambda: |-
+      float iaq = id(iaq_calculated).state;
+      if (iaq <= 50) return {"Excellent"};
+      else if (iaq <= 100) return {"Good"};
+      else if (iaq <= 150) return {"Lightly polluted"};
+      else if (iaq <= 200) return {"Moderately polluted"};
+      else if (iaq <= 250) return {"Heavily polluted"};
+      else if (iaq <= 350) return {"Severely polluted"};
+      else if (iaq <= 500) return {"Extremely polluted"};
+      return {"Unknown"};

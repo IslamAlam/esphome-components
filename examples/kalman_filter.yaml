@@ -1,0 +1,106 @@
+# Basic ESPHome configuration
+esphome:
+  name: kalman-filter-demo
+  friendly_name: Kalman Filter Demo
+
+# Use external components from GitHub
+external_components:
+  - source: github://IslamAlam/esphome-components
+    components: [ kalman_filter ]
+
+# Basic ESP32 setup
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+# Enable logging
+logger:
+  level: INFO
+
+# Enable Home Assistant API
+api:
+
+# Enable OTA updates
+ota:
+
+# Enable Web server
+web_server:
+  port: 80
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+# Fallback hotspot
+captive_portal:
+
+# Sensor configuration
+sensor:
+  # Example with DHT22 sensor
+  - platform: dht
+    model: DHT22
+    temperature:
+      name: "Raw Temperature"
+      id: temp_raw
+    humidity:
+      name: "Raw Humidity"
+      id: hum_raw
+    pin: GPIO4
+    update_interval: 5s
+
+  # Example with BME280 sensor
+  - platform: bme280
+    temperature:
+      name: "BME280 Raw Temperature"
+      id: bme_temp_raw
+    pressure:
+      name: "BME280 Raw Pressure"
+      id: bme_pressure_raw
+    humidity:
+      name: "BME280 Raw Humidity"
+      id: bme_humidity_raw
+    address: 0x76
+    update_interval: 5s
+
+  # Kalman filter for temperature (DHT22)
+  - platform: kalman_filter
+    name: "Filtered Temperature"
+    source_id: temp_raw
+    process_noise: 0.01
+    measurement_noise: 0.1
+    estimated_error: 1.0
+    update_interval: 5s
+    unit_of_measurement: "°C"
+    accuracy_decimals: 1
+
+  # Kalman filter for humidity (DHT22)
+  - platform: kalman_filter
+    name: "Filtered Humidity"
+    source_id: hum_raw
+    process_noise: 0.02
+    measurement_noise: 0.2
+    estimated_error: 1.0
+    update_interval: 5s
+    unit_of_measurement: "%"
+    accuracy_decimals: 1
+
+  # Kalman filter for BME280 pressure
+  - platform: kalman_filter
+    name: "Filtered Pressure"
+    source_id: bme_pressure_raw
+    process_noise: 0.1
+    measurement_noise: 1.0
+    estimated_error: 2.0
+    update_interval: 5s
+    unit_of_measurement: "hPa"
+    accuracy_decimals: 1
+
+# Example filters comparison graph using template sensors
+  - platform: template
+    name: "Raw vs Filtered Difference"
+    lambda: |-
+      return id(temp_raw).state - id(filtered_temperature).state;
+    update_interval: 5s
+    unit_of_measurement: "°C"
+    accuracy_decimals: 2
